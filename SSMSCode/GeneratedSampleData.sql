@@ -1,3 +1,14 @@
+/*
+Date 05/20/2020
+Creator - Nick Arquette
+Purpose - Generate a risk test data for all base patients 
+Source - 
+Example None
+
+
+*/
+
+-- declare variables to build ulr string for risk app
 DECLARE @BaseUrl        VARCHAR(255) = 'enter risk app name'
 DECLARE	@GenderParam    VARCHAR(128) = '?gender='
 DECLARE @AgeParam       VARCHAR(128) = '&age='
@@ -13,16 +24,19 @@ DECLARE @ttParam		VARCHAR(128) = '&tt='
 DECLARE @hashkey		NVARCHAR(32) = 'aabbsseeccdee'
 DECLARE @time			NVARCHAR(12) = CONVERT(nvarchar(10), DATEDIFF(SECOND,'1970-01-01', GETUTCDATE()))
 
+-- add table to store patient without a risk value
 DECLARE @UpdtTbl AS TABLE (
 	ID INT IDENTITY(1,1)
 	,PatientRiskDataID BIGINT
 )
 
+-- insert into table variable WHEN patient don't have a risk value
 INSERT INTO @UpdtTbl ( PatientRiskDataID )
 SELECT PatientRiskDataID
 FROM RptPAPatientRiskData
 WHERE MissingData = 1
 
+--loop though all patient AND generate risk information AND AND age category
 DECLARE @I INT = (SELECT MIN(ID) FROM @UpdtTbl)
 WHILE @I <= (SELECT MAX(ID) FROM @UpdtTbl)
 	BEGIN
@@ -59,86 +73,91 @@ WHILE @I <= (SELECT MAX(ID) FROM @UpdtTbl)
 			   
 	END
 
-declare @coeff table
+--- create a table variable to handle generating the risk information
+
+DECLARE @coeff TABLE
 (
-	IsAfricanAmerican bit,
+	IsAfricanAmerican BIT,
 	GenderCode char(1),
-	CAge numeric(6,4),
-	CSqAge numeric(6,4),
-	CTotalChol numeric(6,4),
-	CAgeTotalChol numeric(6,4),
-	CHDLChol numeric(6,4),
-	CAgeHDLChol numeric(6,4),
-	COnHypertensionMeds numeric(6,4),
-	CAgeOnHypertensionMeds numeric(6,4),
-	COffHypertensionMeds numeric(6,4),
-	CAgeOffHypertensionMeds numeric(6,4),
-	CSmoker numeric(6,4),
-	CAgeSmoker numeric(6,4),
-	CDiabetes numeric(6,4),
-	S10 numeric(6,4),
-	MeanTerms numeric(6,4)
+	CAge NUMERIC(6,4),
+	CSqAge NUMERIC(6,4),
+	CTotalChol NUMERIC(6,4),
+	CAgeTotalChol NUMERIC(6,4),
+	CHDLChol NUMERIC(6,4),
+	CAgeHDLChol NUMERIC(6,4),
+	COnHypertensionMeds NUMERIC(6,4),
+	CAgeOnHypertensionMeds NUMERIC(6,4),
+	COffHypertensionMeds NUMERIC(6,4),
+	CAgeOffHypertensionMeds NUMERIC(6,4),
+	CSmoker NUMERIC(6,4),
+	CAgeSmoker NUMERIC(6,4),
+	CDiabetes NUMERIC(6,4),
+	S10 NUMERIC(6,4),
+	MeanTerms NUMERIC(6,4)
 )
 
-insert into @coeff
-select 1, 'F', 17.114, 0, 0.94, 0, -18.92, 4.475, 29.291, -6.432, 27.82, -6.087 ,0.691, 0, 0.874, 0.9533, 86.61
-union
-select 0, 'F', -29.799, 4.884, 13.54, -3.114, -13.578, 3.149, 2.019, 0, 1.957, 0, 7.574, -1.665, 0.661, 0.9665, -29.18
-union
-select 1, 'M', 2.469, 0, 0.302, 0, -0.307, 0, 1.916, 0, 1.809, 0, 0.549, 0, 0.645, 0.8954, 19.54
-union
-select 0, 'M', 12.344, 0, 11.853, -2.664, -7.99, 1.769, 1.797, 0, 1.764, 0, 7.837, -1.795, 0.658, 0.9144, 61.18
+-- store contants in the table 
+
+INSERT INTO @coeff
+SELECT 1, 'F', 17.114, 0, 0.94, 0, -18.92, 4.475, 29.291, -6.432, 27.82, -6.087 ,0.691, 0, 0.874, 0.9533, 86.61
+UNION
+SELECT 0, 'F', -29.799, 4.884, 13.54, -3.114, -13.578, 3.149, 2.019, 0, 1.957, 0, 7.574, -1.665, 0.661, 0.9665, -29.18
+UNION
+SELECT 1, 'M', 2.469, 0, 0.302, 0, -0.307, 0, 1.916, 0, 1.809, 0, 0.549, 0, 0.645, 0.8954, 19.54
+UNION
+SELECT 0, 'M', 12.344, 0, 11.853, -2.664, -7.99, 1.769, 1.797, 0, 1.764, 0, 7.837, -1.795, 0.658, 0.9144, 61.18
 
 
-;with risk_CTE (PatientDimId, RiskScore, RiskCategory, AgeCategory) as 
+;WITH risk_CTE (PatientDimId, RiskScore, RiskCategory, AgeCategory) AS 
 (
-select
+SELECT
 	PatientDimID,
-	round(100 * (1 - power(coeff.S10, 
-		exp(
+	ROUND(100 * (1 - POWER(coeff.S10, 
+		EXP(
 		( -- Terms
-			(coeff.CAge * log(Age)) + 
-			(coeff.CSqAge * power(log(Age), 2)) + 
-			(coeff.CTotalChol * log(CholResult)) + 
-			(coeff.CAgeTotalChol * log(Age) * log(CholResult)) + 
-			(coeff.CHDLChol * log(HDLResult)) + 
-			(coeff.CAgeHDLChol * log(Age) * log(HDLResult)) + 
-			(cast(RxBP as int) * coeff.COnHypertensionMeds * log(SysResult)) + 
-			(cast(RxBP as int) * coeff.CAgeOnHypertensionMeds * log(Age) * log(SysResult)) + 
-			(case when RxBP = 0 then 1 else 0 end * coeff.COffHypertensionMeds * log(SysResult)) + 
-			(case when RxBP = 0 then 1 else 0 end * coeff.CAgeOffHypertensionMeds * log(Age) * log(SysResult)) + 
-			(coeff.CSmoker * cast(IsSmoker as int)) + 
-			(coeff.CAgeSmoker * log(Age) * cast(IsSmoker as int)) + 
-			(coeff.CDiabetes * cast(IsDiabetic as int))
+			(coeff.CAge * LOG(Age)) + 
+			(coeff.CSqAge * POWER(LOG(Age), 2)) + 
+			(coeff.CTotalChol * LOG(CholResult)) + 
+			(coeff.CAgeTotalChol * LOG(Age) * LOG(CholResult)) + 
+			(coeff.CHDLChol * LOG(HDLResult)) + 
+			(coeff.CAgeHDLChol * LOG(Age) * LOG(HDLResult)) + 
+			(CAST(RxBP AS INT) * coeff.COnHypertensionMeds * LOG(SysResult)) + 
+			(CAST(RxBP AS INT) * coeff.CAgeOnHypertensionMeds * LOG(Age) * LOG(SysResult)) + 
+			(CASE WHEN RxBP = 0 THEN 1 ELSE 0 END * coeff.COffHypertensionMeds * LOG(SysResult)) + 
+			(CASE WHEN RxBP = 0 THEN 1 ELSE 0 END * coeff.CAgeOffHypertensionMeds * LOG(Age) * LOG(SysResult)) + 
+			(coeff.CSmoker * CAST(IsSmoker AS INT)) + 
+			(coeff.CAgeSmoker * LOG(Age) * CAST(IsSmoker AS INT)) + 
+			(coeff.CDiabetes * CAST(IsDiabetic AS INT))
 		)
 		-
 		-- means
 		coeff.MeanTerms))),2,1)
 RiskScore,
 'Unknown' RiskCategory,
-
-case when age between 40 and 49 then '40-49 Years'  
-	 when age between 50 and 59 then '50-59 Years'  
-	 when age between 60 and 69 then '60-69 Years'  
-	 when age between 70 and 79 then '70-79 Years'  
-end AgeCategory
-from RptPAPatientRiskData rd
-inner join @coeff coeff on coeff.IsAfricanAmerican = rd.IsAfricanAmerican and coeff.GenderCode = rd.GenderCode
+CASE WHEN age between 40 AND 49 THEN '40-49 Years'  
+	 WHEN age between 50 AND 59 THEN '50-59 Years'  
+	 WHEN age between 60 AND 69 THEN '60-69 Years'  
+	 WHEN age between 70 AND 79 THEN '70-79 Years'  
+END AgeCategory
+FROM RptPAPatientRiskData rd
+inner JOIN @coeff coeff ON coeff.IsAfricanAmerican = rd.IsAfricanAmerican AND coeff.GenderCode = rd.GenderCode
 )
 
-update patientRiskData
-set patientRiskData.AgeCategory = cte.AgeCategory
+-- UPDATE patient WITH a risk value AND category
+UPDATE patientRiskData
+SET patientRiskData.AgeCategory = cte.AgeCategory
     ,patientRiskData.Risk = cte.RiskScore
 	,patientRiskData.RiskCategory = 
-	case when cte.RiskScore between 0 and 4.99 then 'Low Risk (0 - 5)'
-		 when cte.RiskScore between 5 and 7.49 then 'Borderline Risk (5 - 7.4)'
-		 when cte.RiskScore between 7.5 and 19.99 then 'Intermediate Risk (7.5 - 19.9)'
-		 when cte.RiskScore > 20 then 'High Risk (>20)'
-	end
-from RptPAPatientRiskData as patientRiskData
-join risk_CTE as cte
-	on patientRiskData.PatientDimID = cte.PatientDimID
+	CASE WHEN cte.RiskScore between 0 AND 4.99 THEN 'Low Risk (0 - 5)'
+		 WHEN cte.RiskScore between 5 AND 7.49 THEN 'Borderline Risk (5 - 7.4)'
+		 WHEN cte.RiskScore between 7.5 AND 19.99 THEN 'Intermediate Risk (7.5 - 19.9)'
+		 WHEN cte.RiskScore > 20 THEN 'High Risk (>20)'
+	END
+FROM RptPAPatientRiskData AS patientRiskData
+JOIN risk_CTE AS cte
+	ON patientRiskData.PatientDimID = cte.PatientDimID
 
+-- UPDATE risk url string 
 UPDATE RptPAPatientRiskData
 			SET PatientRiskUrl =  CONCAT(	@BaseURL,
 				@GENDerParam,CASE WHEN GenderCode = 'm' THEN 'Male' WHEN GenderCode = 'f' THEN 'Female' END,
@@ -153,6 +172,8 @@ UPDATE RptPAPatientRiskData
 				@tParam,CONVERT(NVARCHAR(64),HashBytes('SHA2_256','cpm'+@time+@hashkey),2),
 				@ttParam,@time ) 	
 
+
+-- SELECT all patients 
 SELECT * 
 FROM RptPAPatientRiskData
 WHERE MissingData = 0
