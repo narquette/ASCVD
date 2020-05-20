@@ -26,6 +26,7 @@ Powershell.exe -ExecutionPolicy Bypass -File ./InstallASCVD.ps1
 3) Add all required sql scripts (tables and procedures)
 4) Runs Create Risk Information
 5) Updates Risk Table to include the Risk Score and Category
+6) If you don't have any risk data you could run the file called GeneratedSampleData.sql which will insert sample data for all of the patient in the base population (patient between 40 and 79).
 
 
 
